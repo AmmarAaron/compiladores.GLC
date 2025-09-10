@@ -72,6 +72,156 @@ vector<string> tokenizar(const string &linea) {
         else if (c == ';' || c == '(' || c == ')' || c == '{' || c == '}') {
             if (!actual.empty()) {
                 tokens.push_back(actual);
+                actual.clear();#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cctype>
+using namespace std;
+
+// ====== Funciones auxiliares ======
+bool esIdentificador(const string &t) {
+    if (t.empty()) return false;
+    if (!isalpha((unsigned char)t[0])) return false;
+    for (size_t i = 1; i < t.size(); ++i) {
+        if (!isalnum((unsigned char)t[i])) return false;
+    }
+    return true;
+}
+
+bool esNumero(const string &t) {
+    if (t.empty()) return false;
+    for (size_t i = 0; i < t.size(); ++i) {
+        if (!isdigit((unsigned char)t[i])) return false;
+    }
+    return true;
+}
+
+bool esOperador(const string &t) {
+    return (t == "+" || t == "-" || t == "*" || t == "/" ||
+            t == ">" || t == "<" || t == "==");
+}
+
+// ====== Reglas gramaticales ======
+bool esExpresion(const vector<string> &tokens) {
+    if (tokens.size() < 3) return false;
+
+    // Debe comenzar con número o identificador
+    if (!(esNumero(tokens[0]) || esIdentificador(tokens[0]))) return false;
+
+    // Revisar patrón: operando, operador, operando...
+    for (size_t i = 1; i < tokens.size(); i += 2) {
+        if (!esOperador(tokens[i])) return false;
+        if (i + 1 >= tokens.size()) return false;
+        if (!(esNumero(tokens[i + 1]) || esIdentificador(tokens[i + 1]))) return false;
+    }
+
+    return true;
+}
+
+bool esDeclaracion(const vector<string> &tokens) {
+    return (tokens.size() == 3 &&
+            (tokens[0] == "int" || tokens[0] == "float") &&
+            esIdentificador(tokens[1]) &&
+            tokens[2] == ";");
+}
+
+bool esSentenciaSimple(const vector<string> &tokens) {
+    // Identificador + ;
+    if (tokens.size() == 2 && esIdentificador(tokens[0]) && tokens[1] == ";")
+        return true;
+
+    // Declaracion
+    if (esDeclaracion(tokens)) return true;
+
+    // Expresion + ;
+    if (tokens.size() >= 3 && tokens.back() == ";") {
+        vector<string> expr(tokens.begin(), tokens.end() - 1);
+        return esExpresion(expr);
+    }
+
+    return false;
+}
+
+bool esCondicional(const vector<string> &tokens) {
+    if (tokens.size() < 5 || tokens[0] != "if" || tokens[1] != "(") return false;
+
+    // Buscar el ")"
+    size_t posCierre = 0;
+    for (size_t i = 2; i < tokens.size(); i++) {
+        if (tokens[i] == ")") {
+            posCierre = i;
+            break;
+        }
+    }
+    if (posCierre == 0) return false;
+
+    // Condición entre "(" y ")"
+    vector<string> condicion(tokens.begin() + 2, tokens.begin() + posCierre);
+    bool condicionValida = false;
+
+    if (condicion.size() == 1 &&
+        (esIdentificador(condicion[0]) || esNumero(condicion[0]))) {
+        condicionValida = true;
+    } else if (esExpresion(condicion)) {
+        condicionValida = true;
+    }
+
+    if (!condicionValida) return false;
+
+    // Después del ")": debe haber { ... }
+    if (posCierre + 1 >= tokens.size() || tokens[posCierre + 1] != "{") return false;
+
+    size_t posCierreBloque = 0;
+    for (size_t i = posCierre + 2; i < tokens.size(); i++) {
+        if (tokens[i] == "}") {
+            posCierreBloque = i;
+            break;
+        }
+    }
+    if (posCierreBloque == 0) return false;
+
+    vector<string> bloque(tokens.begin() + posCierre + 2, tokens.begin() + posCierreBloque);
+    if (!esSentenciaSimple(bloque)) return false;
+
+    // Verificar si hay un else
+    if (posCierreBloque + 1 < tokens.size() && tokens[posCierreBloque + 1] == "else") {
+        if (posCierreBloque + 2 >= tokens.size() || tokens[posCierreBloque + 2] != "{") return false;
+
+        size_t posCierreElse = 0;
+        for (size_t i = posCierreBloque + 3; i < tokens.size(); i++) {
+            if (tokens[i] == "}") {
+                posCierreElse = i;
+                break;
+            }
+        }
+        if (posCierreElse == 0) return false;
+
+        vector<string> bloqueElse(tokens.begin() + posCierreBloque + 3, tokens.begin() + posCierreElse);
+        if (!esSentenciaSimple(bloqueElse)) return false;
+    }
+
+    return true;
+}
+
+// ====== Tokenizar con separación de símbolos ======
+vector<string> tokenizar(const string &linea) {
+    vector<string> tokens;
+    string actual = "";
+
+    for (size_t i = 0; i < linea.size(); i++) {
+        char c = linea[i];
+
+        if (isspace((unsigned char)c)) {
+            if (!actual.empty()) {
+                tokens.push_back(actual);
+                actual.clear();
+            }
+        }
+        else if (c == ';' || c == '(' || c == ')' || c == '{' || c == '}') {
+            if (!actual.empty()) {
+                tokens.push_back(actual);
                 actual.clear();
             }
             string simbolo(1, c);
