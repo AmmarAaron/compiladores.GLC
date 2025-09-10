@@ -1,77 +1,87 @@
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <cctype>
 using namespace std;
 
-// 1. Identificador: empieza con letra, puede tener letras o dígitos
-bool esIdentificador(const string& s) {
-    if (s.empty() || !isalpha(s[0])) return false;
-    for (char c : s) {
-        if (!isalnum(c)) return false;
+// Función para verificar si un token es un identificador
+bool esIdentificador(string t) {
+    if (!isalpha(t[0])) return false; 
+    for (int i = 1; i < t.size(); i++) {
+        if (!isalnum(t[i])) return false;
     }
     return true;
 }
 
-// 2. Expresión aritmética simple: solo dígitos, +, *, y paréntesis
-bool esExpresionAritmetica(const string& s) {
-    for (char c : s) {
-        if (!(isdigit(c) || c=='+' || c=='*' || c=='(' || c==')' || isspace(c)))
-            return false;
+// Verificar si un token es número
+bool esNumero(string t) {
+    for (char c : t) {
+        if (!isdigit(c)) return false;
     }
     return true;
 }
 
-// 3. Declaración: ej. "int x;" o "float y;"
-bool esDeclaracion(const string& s) {
-    if (s.rfind("int ", 0) == 0 || s.rfind("float ", 0) == 0) {
-        size_t pos = s.find(' ');
-        string id = s.substr(pos + 1, s.size() - pos - 2); // quitar ";"
-        if (s.back() == ';' && esIdentificador(id)) {
-            return true;
-        }
-    }
-    return false;
+// Verificar si es palabra reservada (ejemplo básico)
+bool esPalabraReservada(string t) {
+    return (t == "int" || t == "if" || t == "else");
 }
 
-// 4. Condicional: if(x){x;} o if(x){x;}else{x;}
-bool esCondicional(const string& s) {
-    if (s == "if(x){x;}" || s == "if(x){x;}else{x;}") {
-        return true;
-    }
-    return false;
+// Verificar si es operador
+bool esOperador(string t) {
+    return (t == "+" || t == "-" || t == "*" || t == "/" || t == ">");
+}
+
+// Verificar si es símbolo especial
+bool esSimbolo(string t) {
+    return (t == ";" || t == "{" || t == "}");
+}
+
+// Analizar la regla de declaración: int x;
+bool esDeclaracion(string t1, string t2, string t3) {
+    return (esPalabraReservada(t1) && esIdentificador(t2) && t3 == ";");
+}
+
+// Analizar la regla de condicional: if (x > 0) { ... }
+bool esCondicional(string t1) {
+    return (t1 == "if");
 }
 
 int main() {
-    ifstream archivo("entrada.txt"); // 📌 archivo con las líneas a validar
-    string linea;
+    // Ejemplos de prueba (cada token separado con espacio)
+    string ejemplos[][5] = {
+        {"int", "x", ";"},           // declaración
+        {"x1"},                      // identificador
+        {"2", "+", "3"},             // expresión aritmética
+        {"if", "(", "x", ">", "0)"}, // condicional (simplificada)
+        {"error$"}                   // no válido
+    };
 
-    if (!archivo.is_open()) {
-        cout << "❌ No se pudo abrir el archivo entrada.txt\n";
-        return 1;
+    int n = 5; // cantidad de pruebas
+
+    for (int i = 0; i < n; i++) {
+        cout << "Cadena: ";
+        for (string token : ejemplos[i]) {
+            if (token != "") cout << token << " ";
+        }
+        cout << "-> ";
+
+        // Tomar los primeros tokens (para simplificar)
+        string t1 = ejemplos[i][0];
+        string t2 = ejemplos[i][1];
+        string t3 = ejemplos[i][2];
+
+        if (esDeclaracion(t1, t2, t3)) {
+            cout << "Declaracion valida";
+        } else if (esCondicional(t1)) {
+            cout << "Condicional valida";
+        } else if (esIdentificador(t1)) {
+            cout << "Identificador valido";
+        } else if (esNumero(t1) || esOperador(t2)) {
+            cout << "Expresion aritmetica valida";
+        } else {
+            cout << "No valido";
+        }
+        cout << endl;
     }
 
-    while (getline(archivo, linea)) {
-        cout << "Probando: " << linea << endl;
-
-        if (esDeclaracion(linea)) {
-            cout << "✔ Es una declaracion valida\n";
-        }
-        else if (esCondicional(linea)) {
-            cout << "✔ Es un condicional valido\n";
-        }
-        else if (esIdentificador(linea)) {
-            cout << "✔ Es un identificador valido\n";
-        }
-        else if (esExpresionAritmetica(linea)) {
-            cout << "✔ Es una expresion aritmetica valida\n";
-        }
-        else {
-            cout << "❌ No pertenece a ninguna de las gramaticas\n";
-        }
-        cout << "----------------------\n";
-    }
-
-    archivo.close();
     return 0;
 }
