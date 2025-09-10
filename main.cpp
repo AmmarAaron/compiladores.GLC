@@ -1,11 +1,14 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 #include <cctype>
 using namespace std;
 
-// Comprueba identificador (seguro: revisa si está vacío)
+// Verifica identificador
 bool esIdentificador(const string &t) {
-    if (t.size() == 0) return false;
+    if (t.empty()) return false;
     if (!isalpha((unsigned char)t[0])) return false;
     for (size_t i = 1; i < t.size(); ++i) {
         if (!isalnum((unsigned char)t[i])) return false;
@@ -13,67 +16,89 @@ bool esIdentificador(const string &t) {
     return true;
 }
 
+// Verifica número (solo dígitos)
 bool esNumero(const string &t) {
-    if (t.size() == 0) return false;
+    if (t.empty()) return false;
     for (size_t i = 0; i < t.size(); ++i) {
-        if (!isdigit((unsigned char)t[i])) return false;
+        char c = t[i];
+        if (!isdigit((unsigned char)c)) return false;
     }
     return true;
 }
 
-bool esPalabraReservada(const string &t) {
-    return (t == "int" || t == "float" || t == "if" || t == "else");
-}
-
+// Operadores simples
 bool esOperador(const string &t) {
-    return (t == "+" || t == "-" || t == "*" || t == "/" ||
-            t == ">" || t == "<" || t == "==" );
+    if (t == "+" || t == "-" || t == "*" || t == "/" ||
+        t == ">" || t == "<" || t == "==") return true;
+    return false;
 }
 
-// Declaración simple: tipo identificador ;
-bool esDeclaracionTokens(const string &t1, const string &t2, const string &t3) {
-    if ((t1 == "int" || t1 == "float") && esIdentificador(t2) && t3 == ";")
+// Reglas gramaticales (muy simples)
+
+// Declaracion: tipo identificador ;
+bool esDeclaracion(const vector<string> &tokens) {
+    if (tokens.size() != 3) return false;
+    if ((tokens[0] == "int" || tokens[0] == "float") &&
+        esIdentificador(tokens[1]) && tokens[2] == ";")
+        return true;
+    return false;
+}
+
+// Expresion aritmetica simple: numero operador numero
+bool esExpresion(const vector<string> &tokens) {
+    if (tokens.size() != 3) return false;
+    if (esNumero(tokens[0]) && esOperador(tokens[1]) && esNumero(tokens[2]))
+        return true;
+    return false;
+}
+
+// Condicional simplificado: if ( id|num operador id|num )
+bool esCondicional(const vector<string> &tokens) {
+    if (tokens.size() < 5) return false;
+    if (tokens[0] != "if") return false;
+    if (tokens[1] != "(") return false;
+    // tokens[2] := id o num, tokens[3] := operador, tokens[4] := id o num (ejemplo)
+    if ((esIdentificador(tokens[2]) || esNumero(tokens[2])) &&
+        esOperador(tokens[3]) &&
+        (esIdentificador(tokens[4]) || esNumero(tokens[4])))
         return true;
     return false;
 }
 
 int main() {
-    // Cada fila tiene hasta 5 tokens (los strings vacíos son ignorados)
-    string ejemplos[5][5] = {
-        {"int", "x", ";", "", ""},           // declaración
-        {"x1", "", "", "", ""},              // identificador
-        {"2", "+", "3", "", ""},             // expresión aritmética (simplificada)
-        {"if", "(", "x", ">", "0)"},
-        {"error$", "", "", "", ""}           // no válido
-    };
+    // Abre entrada.txt (debe estar en la misma carpeta donde ejecutas el .exe)
+    ifstream archivo("entrada.txt");
+    if (!archivo) {
+        cout << "No se pudo abrir el archivo entrada.txt" << endl;
+        return 1;
+    }
 
-    int n = 5; // filas
+    string linea;
+    while (getline(archivo, linea)) {
+        if (linea.empty()) continue; // saltar líneas vacías
 
-    for (int i = 0; i < n; ++i) {
-        cout << "Cadena: ";
-        // imprimir tokens (evitar range-based for)
-        for (int j = 0; j < 5; ++j) {
-            if (ejemplos[i][j] != "") cout << ejemplos[i][j] << " ";
+        cout << "Cadena: " << linea << " -> ";
+
+        // Tokenizar por espacios
+        stringstream ss(linea);
+        string tok;
+        vector<string> tokens;
+        while (ss >> tok) {
+            tokens.push_back(tok);
         }
 
-        cout << "-> ";
-
-        // tomamos los primeros tokens para las comprobaciones simples
-        string t1 = ejemplos[i][0];
-        string t2 = ejemplos[i][1];
-        string t3 = ejemplos[i][2];
-
-        if (esDeclaracionTokens(t1, t2, t3)) {
+        // Validaciones (una regla por línea)
+        if (esDeclaracion(tokens)) {
             cout << "Declaracion valida";
         }
-        else if (t1 == "if") {
-            cout << "Condicional (detected, simplificado)";
+        else if (esCondicional(tokens)) {
+            cout << "Condicional valida";
         }
-        else if (esIdentificador(t1)) {
-            cout << "Identificador valido";
-        }
-        else if (esNumero(t1) || esOperador(t2)) {
+        else if (esExpresion(tokens)) {
             cout << "Expresion aritmetica valida";
+        }
+        else if (tokens.size() == 1 && esIdentificador(tokens[0])) {
+            cout << "Identificador valido";
         }
         else {
             cout << "No valido";
@@ -81,6 +106,14 @@ int main() {
 
         cout << endl;
     }
+
+    archivo.close();
+
+    // Pausa para que en Windows no se cierre la consola inmediatamente
+    #ifdef _WIN32
+    cout << "\nPresiona ENTER para salir...";
+    cin.get();
+    #endif
 
     return 0;
 }
