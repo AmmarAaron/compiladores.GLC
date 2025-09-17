@@ -4,9 +4,11 @@
 #include <string>
 #include <vector>
 #include <cctype>
+#include <locale>
+#include <clocale>
 using namespace std;
 
-// ====== Funciones auxiliares ======
+// Funciones auxiliares
 bool esIdentificador(const string &t) {
     if (t.empty()) return false;
     if (!isalpha((unsigned char)t[0])) return false;
@@ -18,8 +20,8 @@ bool esIdentificador(const string &t) {
 
 bool esNumero(const string &t) {
     if (t.empty()) return false;
-    for (size_t i = 0; i < t.size(); ++i) {
-        if (!isdigit((unsigned char)t[i])) return false;
+    for (char c : t) {
+        if (!isdigit((unsigned char)c)) return false;
     }
     return true;
 }
@@ -29,21 +31,68 @@ bool esOperador(const string &t) {
             t == ">" || t == "<" || t == "==");
 }
 
-// ====== Reglas gramaticales ======
-bool esExpresion(const vector<string> &tokens) {
-    if (tokens.size() < 3) return false;
+// Funcion para validar expresion aritmetica con paréntesis y operadores
 
-    // Debe comenzar con número o identificador
-    if (!(esNumero(tokens[0]) || esIdentificador(tokens[0]))) return false;
+bool esExpresionRec(const vector<string> &tokens, size_t inicio, size_t fin, size_t &posFin) {
+	
+    // Esta funcion valida una expresion en tokens[inicio..fin-1]
+    // posFin devuelve hasta donde se reconocio la expresion
 
-    // Revisar patrón: operando, operador, operando...
-    for (size_t i = 1; i < tokens.size(); i += 2) {
-        if (!esOperador(tokens[i])) return false;
-        if (i + 1 >= tokens.size()) return false;
-        if (!(esNumero(tokens[i + 1]) || esIdentificador(tokens[i + 1]))) return false;
+    int balanceParentesis = 0;
+    bool esperandoOperando = true;  // Si esperamos un operando (identificador o numero o subexpresion)
+    size_t i = inicio;
+
+    while (i < fin) {
+        const string &tok = tokens[i];
+
+        if (tok == "(") {
+            // abrir paréntesis: balanceamos
+            balanceParentesis++;
+            size_t subFin;
+            if (!esExpresionRec(tokens, i + 1, fin, subFin)) return false;
+            i = subFin;
+            if (i >= fin || tokens[i] != ")") return false;
+            balanceParentesis--;
+            i++;
+            esperandoOperando = false;
+        }
+        else if (esperandoOperando) {
+            // Esperamos operando: debe ser numero o identificador
+            if (esNumero(tok) || esIdentificador(tok)) {
+                esperandoOperando = false;
+                i++;
+            } else {
+                return false;
+            }
+        }
+        else {
+            // Esperamos operador o fin expresion
+            if (esOperador(tok)) {
+                esperandoOperando = true;
+                i++;
+            } else {
+                // no es operador => fin expresion
+                break;
+            }
+        }
     }
 
+    if (balanceParentesis != 0) return false;
+    if (esperandoOperando) return false;  // termino esperando un operando (incompleto)
+
+    posFin = i;
     return true;
+}
+
+// Wrapper para validar toda la expresion
+
+bool esExpresion(const vector<string> &tokens) {
+    size_t posFin = 0;
+    if (!esExpresionRec(tokens, 0, tokens.size(), posFin)) return false;
+    
+    // la expresion debe cubrir todos los tokens
+    
+    return (posFin == tokens.size());
 }
 
 bool esDeclaracion(const vector<string> &tokens) {
@@ -54,6 +103,7 @@ bool esDeclaracion(const vector<string> &tokens) {
 }
 
 bool esSentenciaSimple(const vector<string> &tokens) {
+	
     // Identificador + ;
     if (tokens.size() == 2 && esIdentificador(tokens[0]) && tokens[1] == ";")
         return true;
@@ -73,7 +123,6 @@ bool esSentenciaSimple(const vector<string> &tokens) {
 bool esCondicional(const vector<string> &tokens) {
     if (tokens.size() < 5 || tokens[0] != "if" || tokens[1] != "(") return false;
 
-    // Buscar el ")"
     size_t posCierre = 0;
     for (size_t i = 2; i < tokens.size(); i++) {
         if (tokens[i] == ")") {
@@ -83,7 +132,6 @@ bool esCondicional(const vector<string> &tokens) {
     }
     if (posCierre == 0) return false;
 
-    // Condición entre "(" y ")"
     vector<string> condicion(tokens.begin() + 2, tokens.begin() + posCierre);
     bool condicionValida = false;
 
@@ -96,7 +144,6 @@ bool esCondicional(const vector<string> &tokens) {
 
     if (!condicionValida) return false;
 
-    // Después del ")": debe haber { ... }
     if (posCierre + 1 >= tokens.size() || tokens[posCierre + 1] != "{") return false;
 
     size_t posCierreBloque = 0;
@@ -111,7 +158,6 @@ bool esCondicional(const vector<string> &tokens) {
     vector<string> bloque(tokens.begin() + posCierre + 2, tokens.begin() + posCierreBloque);
     if (!esSentenciaSimple(bloque)) return false;
 
-    // Verificar si hay un else
     if (posCierreBloque + 1 < tokens.size() && tokens[posCierreBloque + 1] == "else") {
         if (posCierreBloque + 2 >= tokens.size() || tokens[posCierreBloque + 2] != "{") return false;
 
@@ -131,7 +177,6 @@ bool esCondicional(const vector<string> &tokens) {
     return true;
 }
 
-// ====== Tokenizar con separación de símbolos ======
 vector<string> tokenizar(const string &linea) {
     vector<string> tokens;
     string actual = "";
@@ -162,8 +207,22 @@ vector<string> tokenizar(const string &linea) {
     return tokens;
 }
 
-// ====== Programa principal ======
+bool esComentario(const string &linea) {
+    string trimmed = linea;
+    while (!trimmed.empty() && isspace(trimmed[0])) {
+        trimmed.erase(0, 1);
+    }
+
+    if (trimmed.size() >= 2) {
+        if (trimmed[0] == '/' && trimmed[1] == '/') return true;
+        if (trimmed.size() >= 4 && trimmed.substr(0, 2) == "/*" && trimmed.substr(trimmed.size() - 2, 2) == "*/") return true;
+    }
+    return false;
+}
+
 int main() {
+    setlocale(LC_ALL, "");
+
     ifstream archivo("entrada.txt");
     if (!archivo) {
         cout << "No se pudo abrir el archivo entrada.txt" << endl;
@@ -176,24 +235,28 @@ int main() {
 
         cout << "Cadena: " << linea << " -> ";
 
-        vector<string> tokens = tokenizar(linea);
-
-        if (esDeclaracion(tokens)) {
-            cout << "Declaracion valida";
-        }
-        else if (esCondicional(tokens)) {
-            cout << "Condicional valida";
-        }
-        else if (esExpresion(tokens)) {
-            cout << "Expresion aritmetica valida";
-        }
-        else if (tokens.size() == 1 && esIdentificador(tokens[0])) {
-            cout << "Identificador valido";
+        if (esComentario(linea)) {
+            cout << "Comentario valido";
         }
         else {
-            cout << "No valido";
-        }
+            vector<string> tokens = tokenizar(linea);
 
+            if (esDeclaracion(tokens)) {
+                cout << "Declaracion valida";
+            }
+            else if (esCondicional(tokens)) {
+                cout << "Condicional valido";
+            }
+            else if (esExpresion(tokens)) {
+                cout << "Expresion aritmetica valida";
+            }
+            else if (tokens.size() == 1 && esIdentificador(tokens[0])) {
+                cout << "Identificador valido";
+            }
+            else {
+                cout << "No valido";
+            }
+        }
         cout << endl;
     }
 
