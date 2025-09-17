@@ -1,8 +1,10 @@
-edad
+edad  
 int x;
 float total;
 if(x){x;}
 if(x){x;}else{x;}
-2+3*4
+2*3+4;
 (a+2)*5
 error$123
+//comentario
+/* comentario */
